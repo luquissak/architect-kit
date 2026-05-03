@@ -1,0 +1,8 @@
+- [/] Criar diretório `backend` e o arquivo `backend/.env` com as chaves de API.
+- [/] Criar `backend/requirements.txt` e instalar as dependências Python.
+- [/] Implementar `backend/llm_factory.py` (Factory Pattern para Anthropic e Gemini).
+- [/] Implementar `backend/main.py` (Servidor FastAPI com rota de geração).
+- [x] Atualizar `.gitignore` para ignorar o `.env` e as pastas do ambiente virtual do Python.
+- [x] Atualizar `vite.config.js` para fazer proxy das chamadas `/api` para o backend local (porta 8000).
+- [x] Atualizar `src/App.jsx` adicionando o controle (radio/dropdown) para escolher o provedor (Anthropic ou Gemini) e ajustar a chamada para o novo backend.
+- [ ] Iniciar e verificar os servidores.

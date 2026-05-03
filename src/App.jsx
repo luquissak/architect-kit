@@ -1,0 +1,494 @@
+import { useState } from "react";
+
+const TEMPLATES = [
+  {
+    label: "Data Lakehouse GCP",
+    cloud: "GCP",
+    pattern: "Lakehouse",
+    detail: "técnico",
+    description: "Ingestão de dados batch e streaming via Pub/Sub e Dataflow, armazenamento no GCS em camadas Bronze/Silver/Gold, processamento com BigQuery e Dataproc Spark, catálogo com Dataplex, consumo via Looker e Vertex AI para modelos de ML.",
+  },
+  {
+    label: "RAG Pipeline AWS",
+    cloud: "AWS",
+    pattern: "RAG / GenAI",
+    detail: "técnico",
+    description: "Pipeline RAG na AWS: documentos ingeridos via S3, processados com Lambda, embeddings gerados pelo Bedrock Titan, armazenados no OpenSearch Serverless como vector store, orquestração com Step Functions, API Gateway expondo endpoint de chat com Claude via Bedrock.",
+  },
+  {
+    label: "MLOps Azure",
+    cloud: "Azure",
+    pattern: "MLOps",
+    detail: "técnico",
+    description: "Plataforma MLOps no Azure: dados no ADLS Gen2, feature engineering com Azure Databricks, treinamento e registro de modelos no Azure ML, CI/CD com Azure DevOps, deploy como endpoint gerenciado, monitoramento com Azure Monitor e Application Insights.",
+  },
+  {
+    label: "Streaming Analytics GCP",
+    cloud: "GCP",
+    pattern: "Streaming",
+    detail: "técnico",
+    description: "Arquitetura de streaming analytics: eventos publicados no Pub/Sub, processamento em tempo real com Dataflow (Apache Beam), resultados gravados no BigQuery e no Bigtable para baixa latência, dashboards em tempo real no Looker Studio.",
+  },
+  {
+    label: "Landing Zone Multi-cloud",
+    cloud: "Multi-cloud",
+    pattern: "Landing Zone",
+    detail: "executivo",
+    description: "Landing zone multi-cloud para dados corporativos: governança centralizada, data mesh com domínios de dados independentes em GCP e Azure, federação de identidade, segurança perimetral e catálogo unificado com tags e políticas de acesso.",
+  },
+];
+
+const CLOUDS = ["GCP", "AWS", "Azure", "Multi-cloud"];
+const PATTERNS = ["Lakehouse", "Streaming", "Batch ETL", "RAG / GenAI", "MLOps", "Landing Zone", "Data Mesh", "Personalizado"];
+const DETAILS = ["executivo", "técnico"];
+
+const SYSTEM_PROMPT = `Você é um arquiteto de soluções especialista em dados e IA. Sua tarefa é gerar código Python usando a biblioteca \`diagrams\` (diagrams.mingrammer.com) para criar diagramas de arquitetura de solução em nuvem.
+
+Regras obrigatórias:
+1. Use SEMPRE imports corretos da biblioteca diagrams (diagrams.aws.*, diagrams.gcp.*, diagrams.azure.*, diagrams.onprem.*)
+2. Use with Diagram(..., show=False, direction="LR") como padrão
+3. Agrupe componentes com Cluster para representar camadas (Ingestão, Processamento, Armazenamento, Consumo, etc.)
+4. Use os ícones mais adequados disponíveis na biblioteca para cada serviço mencionado
+5. Represente fluxo de dados com >> entre os componentes
+6. Inclua comentários curtos no código para guiar o leitor
+7. Ao final, inclua um bloco de comentários com o comando para instalar dependências e rodar o script
+
+Responda APENAS com o bloco de código Python, sem explicações antes ou depois. Comece com \`from diagrams import...\` e termine com o fechamento do bloco \`with\`.`;
+
+export default function App() {
+  const [cloud, setCloud] = useState("GCP");
+  const [pattern, setPattern] = useState("Lakehouse");
+  const [provider, setProvider] = useState("anthropic");
+  const [detail, setDetail] = useState("técnico");
+  const [description, setDescription] = useState("");
+  const [output, setOutput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("gerador");
+
+  const applyTemplate = (tpl) => {
+    setCloud(tpl.cloud);
+    setPattern(tpl.pattern);
+    setDetail(tpl.detail);
+    setDescription(tpl.description);
+    setOutput("");
+    setActiveTab("gerador");
+  };
+
+  const generate = async () => {
+    if (!description.trim()) return;
+    setLoading(true);
+    setOutput("");
+
+    const userPrompt = `Gere um diagrama Python (biblioteca diagrams) para a seguinte arquitetura de solução:
+
+Cloud: ${cloud}
+Padrão arquitetural: ${pattern}
+Nível de detalhe: ${detail}
+Descrição: ${description}`;
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: provider,
+          system_prompt: SYSTEM_PROMPT,
+          user_prompt: userPrompt
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || data.error?.message || "Erro na API");
+      }
+      const text = typeof data.content === 'string' ? data.content : (data.content?.map?.((b) => b.text || "")?.join("") || "Erro ao gerar.");
+      const clean = text.replace(/```python\n?/g, "").replace(/```\n?/g, "").trim();
+      setOutput(clean);
+    } catch (e) {
+      setOutput("# Erro ao chamar a API. Verifique sua conexão ou API Key.\n# Detalhe: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = () => {
+    navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#0a0f1a",
+      color: "#e2e8f0",
+      fontFamily: "'IBM Plex Sans', 'Segoe UI', sans-serif",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      {/* Header */}
+      <div style={{
+        borderBottom: "1px solid #1e2d45",
+        padding: "18px 32px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        background: "#07101f",
+      }}>
+        <div style={{
+          width: 36, height: 36,
+          background: "linear-gradient(135deg, #0ea5e9, #6366f1)",
+          borderRadius: 8,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 18,
+        }}>⬡</div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-0.3px" }}>
+            ArchDiagram <span style={{ color: "#0ea5e9" }}>AI</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#4a6080", marginTop: 1 }}>
+            Gerador de diagramas cloud com IA · Pre-Sales Kit
+          </div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {["gerador", "templates"].map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              background: activeTab === tab ? "#0ea5e920" : "transparent",
+              border: activeTab === tab ? "1px solid #0ea5e950" : "1px solid transparent",
+              color: activeTab === tab ? "#0ea5e9" : "#4a6080",
+              padding: "5px 14px",
+              borderRadius: 6,
+              fontSize: 12,
+              cursor: "pointer",
+              fontWeight: 500,
+              textTransform: "capitalize",
+            }}>{tab}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: "flex" }}>
+        {/* Main */}
+        {activeTab === "gerador" && (
+          <div style={{ flex: 1, display: "flex", gap: 0 }}>
+            {/* Left Panel */}
+            <div style={{
+              width: 340,
+              borderRight: "1px solid #1e2d45",
+              padding: 24,
+              display: "flex",
+              flexDirection: "column",
+              gap: 20,
+            }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Motor de IA (LLM)
+                </label>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, marginBottom: 20 }}>
+                  {["anthropic", "gemini"].map((p) => (
+                    <button key={p} onClick={() => setProvider(p)} style={{
+                      flex: 1, padding: "6px 0",
+                      borderRadius: 6,
+                      border: provider === p ? "1px solid #10b981" : "1px solid #1e2d45",
+                      background: provider === p ? "#10b98115" : "#0d1829",
+                      color: provider === p ? "#10b981" : "#6b8aaa",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500,
+                      textTransform: "capitalize"
+                    }}>{p === "anthropic" ? "Claude 3.5" : "Gemini 1.5"}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Cloud Provider
+                </label>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  {CLOUDS.map((c) => (
+                    <button key={c} onClick={() => setCloud(c)} style={{
+                      padding: "5px 12px",
+                      borderRadius: 6,
+                      border: cloud === c ? "1px solid #0ea5e9" : "1px solid #1e2d45",
+                      background: cloud === c ? "#0ea5e915" : "#0d1829",
+                      color: cloud === c ? "#0ea5e9" : "#6b8aaa",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500,
+                    }}>{c}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Padrão Arquitetural
+                </label>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                  {PATTERNS.map((p) => (
+                    <button key={p} onClick={() => setPattern(p)} style={{
+                      padding: "5px 10px",
+                      borderRadius: 6,
+                      border: pattern === p ? "1px solid #6366f1" : "1px solid #1e2d45",
+                      background: pattern === p ? "#6366f115" : "#0d1829",
+                      color: pattern === p ? "#818cf8" : "#6b8aaa",
+                      fontSize: 11, cursor: "pointer", fontWeight: 500,
+                    }}>{p}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Nível de Detalhe
+                </label>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  {DETAILS.map((d) => (
+                    <button key={d} onClick={() => setDetail(d)} style={{
+                      padding: "5px 14px",
+                      borderRadius: 6,
+                      border: detail === d ? "1px solid #10b981" : "1px solid #1e2d45",
+                      background: detail === d ? "#10b98115" : "#0d1829",
+                      color: detail === d ? "#34d399" : "#6b8aaa",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500, textTransform: "capitalize",
+                    }}>{d}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Descrição da Solução
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descreva a arquitetura em linguagem natural. Ex: pipeline de ingestão batch com Glue, armazenamento no S3 em camadas, catálogo com Glue Catalog, consumo no Athena e dashboards no QuickSight..."
+                  style={{
+                    marginTop: 8,
+                    flex: 1,
+                    minHeight: 160,
+                    background: "#0d1829",
+                    border: "1px solid #1e2d45",
+                    borderRadius: 8,
+                    color: "#cbd5e1",
+                    fontSize: 13,
+                    padding: "12px 14px",
+                    resize: "vertical",
+                    outline: "none",
+                    lineHeight: 1.6,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={generate}
+                disabled={loading || !description.trim()}
+                style={{
+                  padding: "12px 0",
+                  borderRadius: 8,
+                  border: "none",
+                  background: loading || !description.trim()
+                    ? "#1e2d45"
+                    : "linear-gradient(135deg, #0ea5e9, #6366f1)",
+                  color: loading || !description.trim() ? "#2d4060" : "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: loading || !description.trim() ? "not-allowed" : "pointer",
+                  letterSpacing: "0.05em",
+                  transition: "opacity 0.2s",
+                }}
+              >
+                {loading ? "⟳  Gerando..." : "⬡  Gerar Diagrama"}
+              </button>
+            </div>
+
+            {/* Right Panel - Code Output */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <div style={{
+                padding: "12px 20px",
+                borderBottom: "1px solid #1e2d45",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "#080e1b",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                  <span style={{ fontSize: 12, color: "#4a6080", fontFamily: "monospace" }}>
+                    diagram.py
+                  </span>
+                </div>
+                {output && (
+                  <button onClick={copy} style={{
+                    background: "#1e2d45",
+                    border: "none",
+                    color: copied ? "#10b981" : "#4a8ab5",
+                    padding: "4px 12px",
+                    borderRadius: 5,
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}>
+                    {copied ? "✓ Copiado!" : "⎘ Copiar"}
+                  </button>
+                )}
+              </div>
+
+              <div style={{
+                flex: 1,
+                padding: 24,
+                overflow: "auto",
+                background: "#080e1b",
+              }}>
+                {!output && !loading && (
+                  <div style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 12,
+                    opacity: 0.4,
+                  }}>
+                    <div style={{ fontSize: 40 }}>⬡</div>
+                    <div style={{ fontSize: 13, color: "#4a6080" }}>
+                      Configure e descreva a solução para gerar o código
+                    </div>
+                  </div>
+                )}
+                {loading && (
+                  <div style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 16,
+                  }}>
+                    <div style={{
+                      width: 40, height: 40,
+                      border: "3px solid #1e2d45",
+                      borderTop: "3px solid #0ea5e9",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                    }} />
+                    <div style={{ fontSize: 13, color: "#4a6080" }}>
+                      Gerando diagrama com IA...
+                    </div>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                  </div>
+                )}
+                {output && (
+                  <pre style={{
+                    margin: 0,
+                    fontFamily: "'IBM Plex Mono', 'Fira Code', monospace",
+                    fontSize: 12.5,
+                    lineHeight: 1.7,
+                    color: "#a8c7e8",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}>
+                    {output.split("\n").map((line, i) => {
+                      const isComment = line.trim().startsWith("#");
+                      const isImport = line.startsWith("from") || line.startsWith("import");
+                      const isKeyword = /^\s*(with|for|if|def|class|return)\b/.test(line);
+                      return (
+                        <span key={i} style={{
+                          color: isComment ? "#4a8060"
+                            : isImport ? "#c084fc"
+                              : isKeyword ? "#0ea5e9"
+                                : "#a8c7e8",
+                          display: "block",
+                        }}>{line}</span>
+                      );
+                    })}
+                  </pre>
+                )}
+              </div>
+
+              {output && (
+                <div style={{
+                  padding: "12px 20px",
+                  borderTop: "1px solid #1e2d45",
+                  background: "#07101f",
+                  display: "flex",
+                  gap: 16,
+                  alignItems: "center",
+                }}>
+                  <span style={{ fontSize: 11, color: "#2d5a3a", fontWeight: 600 }}>COMO USAR:</span>
+                  <code style={{ fontSize: 11, color: "#4a8060", fontFamily: "monospace" }}>
+                    pip install diagrams graphviz
+                  </code>
+                  <span style={{ fontSize: 11, color: "#2d3a50" }}>→</span>
+                  <code style={{ fontSize: 11, color: "#4a8060", fontFamily: "monospace" }}>
+                    python diagram.py
+                  </code>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Templates Tab */}
+        {activeTab === "templates" && (
+          <div style={{ flex: 1, padding: 32 }}>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.3px" }}>
+                Templates de Pré-Vendas
+              </div>
+              <div style={{ fontSize: 13, color: "#4a6080", marginTop: 4 }}>
+                Padrões arquiteturais prontos para acelerar suas propostas
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+              {TEMPLATES.map((tpl) => (
+                <div key={tpl.label} style={{
+                  background: "#0d1829",
+                  border: "1px solid #1e2d45",
+                  borderRadius: 10,
+                  padding: 20,
+                  cursor: "pointer",
+                  transition: "border-color 0.2s",
+                }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "#0ea5e950"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "#1e2d45"}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{tpl.label}</div>
+                    <span style={{
+                      background: "#0ea5e915",
+                      border: "1px solid #0ea5e930",
+                      color: "#0ea5e9",
+                      fontSize: 10,
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      fontWeight: 600,
+                    }}>{tpl.cloud}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6366f1", marginBottom: 8, fontWeight: 600 }}>
+                    {tpl.pattern} · {tpl.detail}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#4a6080", lineHeight: 1.6, marginBottom: 16 }}>
+                    {tpl.description.slice(0, 120)}...
+                  </div>
+                  <button onClick={() => applyTemplate(tpl)} style={{
+                    background: "linear-gradient(135deg, #0ea5e920, #6366f120)",
+                    border: "1px solid #0ea5e940",
+                    color: "#0ea5e9",
+                    padding: "7px 16px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    width: "100%",
+                  }}>
+                    Usar este template →
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

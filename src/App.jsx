@@ -62,6 +62,10 @@ export default function App() {
   const [detail, setDetail] = useState("técnico");
   const [description, setDescription] = useState("");
   const [output, setOutput] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [archId, setArchId] = useState("");
+  const [version, setVersion] = useState(0);
+  const [iterationPrompt, setIterationPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("gerador");
@@ -76,11 +80,21 @@ export default function App() {
   };
 
   const generate = async () => {
-    if (!description.trim()) return;
+    const isIteration = archId !== "";
+    const promptBase = isIteration ? iterationPrompt : description;
+    
+    if (!promptBase.trim()) return;
     setLoading(true);
-    setOutput("");
+    
+    // Se não for iteração, limpa os outputs antigos
+    if (!isIteration) {
+      setOutput("");
+      setImageUrl("");
+    }
 
-    const userPrompt = `Gere um diagrama Python (biblioteca diagrams) para a seguinte arquitetura de solução:
+    const userPrompt = isIteration 
+      ? `Temos o diagrama versão ${version}. Por favor, modifique o código Python existente de acordo com este novo pedido: ${iterationPrompt}\n\nCódigo anterior:\n${output}`
+      : `Gere um diagrama Python (biblioteca diagrams) para a seguinte arquitetura de solução:
 
 Cloud: ${cloud}
 Padrão arquitetural: ${pattern}
@@ -96,7 +110,8 @@ Descrição: ${description}`;
         body: JSON.stringify({
           provider: provider,
           system_prompt: SYSTEM_PROMPT,
-          user_prompt: userPrompt
+          user_prompt: userPrompt,
+          arch_id: archId || null
         }),
       });
       const data = await response.json();
@@ -106,6 +121,21 @@ Descrição: ${description}`;
       const text = typeof data.content === 'string' ? data.content : (data.content?.map?.((b) => b.text || "")?.join("") || "Erro ao gerar.");
       const clean = text.replace(/```python\n?/g, "").replace(/```\n?/g, "").trim();
       setOutput(clean);
+      if (data.image_url) {
+        setImageUrl(data.image_url + "?t=" + new Date().getTime()); // Evitar cache
+      } else {
+        setImageUrl("");
+      }
+      
+      setArchId(data.arch_id);
+      setVersion(data.version);
+      
+      if (data.error) {
+        const errorComments = data.error.split('\\n').map(line => `# ${line}`).join('\\n');
+        setOutput(`${errorComments}\\n\\n${clean}`);
+      }
+      
+      setIterationPrompt("");
     } catch (e) {
       setOutput("# Erro ao chamar a API. Verifique sua conexão ou API Key.\n# Detalhe: " + e.message);
     } finally {
@@ -303,127 +333,92 @@ Descrição: ${description}`;
               </button>
             </div>
 
-            {/* Right Panel - Code Output */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, padding: 32, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto" }}>
               <div style={{
-                padding: "12px 20px",
-                borderBottom: "1px solid #1e2d45",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background: "#080e1b",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
-                  <span style={{ fontSize: 12, color: "#4a6080", fontFamily: "monospace" }}>
-                    diagram.py
-                  </span>
-                </div>
-                {output && (
-                  <button onClick={copy} style={{
-                    background: "#1e2d45",
-                    border: "none",
-                    color: copied ? "#10b981" : "#4a8ab5",
-                    padding: "4px 12px",
-                    borderRadius: 5,
-                    fontSize: 11,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}>
-                    {copied ? "✓ Copiado!" : "⎘ Copiar"}
-                  </button>
-                )}
-              </div>
-
-              <div style={{
+                background: "#0d1829",
+                border: "1px solid #1e2d45",
+                borderRadius: 12,
                 flex: 1,
-                padding: 24,
-                overflow: "auto",
-                background: "#080e1b",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden"
               }}>
-                {!output && !loading && (
-                  <div style={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 12,
-                    opacity: 0.4,
-                  }}>
-                    <div style={{ fontSize: 40 }}>⬡</div>
-                    <div style={{ fontSize: 13, color: "#4a6080" }}>
-                      Configure e descreva a solução para gerar o código
-                    </div>
-                  </div>
-                )}
-                {loading && (
-                  <div style={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 16,
-                  }}>
-                    <div style={{
-                      width: 40, height: 40,
-                      border: "3px solid #1e2d45",
-                      borderTop: "3px solid #0ea5e9",
-                      borderRadius: "50%",
-                      animation: "spin 1s linear infinite",
-                    }} />
-                    <div style={{ fontSize: 13, color: "#4a6080" }}>
-                      Gerando diagrama com IA...
-                    </div>
-                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  </div>
-                )}
-                {output && (
-                  <pre style={{
-                    margin: 0,
-                    fontFamily: "'IBM Plex Mono', 'Fira Code', monospace",
-                    fontSize: 12.5,
-                    lineHeight: 1.7,
-                    color: "#a8c7e8",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}>
-                    {output.split("\n").map((line, i) => {
-                      const isComment = line.trim().startsWith("#");
-                      const isImport = line.startsWith("from") || line.startsWith("import");
-                      const isKeyword = /^\s*(with|for|if|def|class|return)\b/.test(line);
-                      return (
-                        <span key={i} style={{
-                          color: isComment ? "#4a8060"
-                            : isImport ? "#c084fc"
-                              : isKeyword ? "#0ea5e9"
-                                : "#a8c7e8",
-                          display: "block",
-                        }}>{line}</span>
-                      );
-                    })}
-                  </pre>
-                )}
-              </div>
-
-              {output && (
                 <div style={{
                   padding: "12px 20px",
-                  borderTop: "1px solid #1e2d45",
-                  background: "#07101f",
+                  borderBottom: "1px solid #1e2d45",
                   display: "flex",
-                  gap: 16,
-                  alignItems: "center",
+                  justifyContent: "space-between",
+                  alignItems: "center"
                 }}>
-                  <span style={{ fontSize: 11, color: "#2d5a3a", fontWeight: 600 }}>COMO USAR:</span>
-                  <code style={{ fontSize: 11, color: "#4a8060", fontFamily: "monospace" }}>
-                    pip install diagrams graphviz
-                  </code>
-                  <span style={{ fontSize: 11, color: "#2d3a50" }}>→</span>
-                  <code style={{ fontSize: 11, color: "#4a8060", fontFamily: "monospace" }}>
-                    python diagram.py
-                  </code>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#e2e8f0" }}>
+                    {archId ? `Visualização da Arquitetura (v${version})` : 'Código Python Gerado'}
+                  </div>
+                  {output && (
+                    <button onClick={copy} style={{
+                      background: copied ? "#10b98120" : "transparent",
+                      border: copied ? "1px solid #10b98150" : "1px solid #4a6080",
+                      color: copied ? "#10b981" : "#a8c7e8",
+                      padding: "4px 12px", borderRadius: 4, fontSize: 12, cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}>
+                      {copied ? "Copiado!" : "Copiar Código"}
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                  {loading && (
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                      <div style={{ width: 40, height: 40, border: "3px solid #1e2d45", borderTop: "3px solid #0ea5e9", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                      <div style={{ color: "#0ea5e9", fontSize: 14 }}>Gerando arquitetura...</div>
+                      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    </div>
+                  )}
+
+                  {!loading && !output && (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ color: "#4a6080", fontSize: 14 }}>Preencha as configurações e clique em Gerar Diagrama.</div>
+                    </div>
+                  )}
+
+                  {!loading && output && (
+                    <>
+                      {imageUrl && (
+                        <div style={{ flex: 2, borderBottom: "1px solid #1e2d45", background: "white", display: "flex", justifyContent: "center", alignItems: "center", padding: 20 }}>
+                          <img src={imageUrl} alt="Diagrama da Arquitetura" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                        </div>
+                      )}
+                      <div style={{ flex: imageUrl ? 1 : 2, overflowY: "auto", background: "#0a0f1a", padding: 20 }}>
+                        <pre style={{ margin: 0, fontSize: 13, lineHeight: 1.6, fontFamily: "'JetBrains Mono', 'Fira Code', monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {output.split("\n").map((line, i) => {
+                            const isComment = line.trim().startsWith("#");
+                            const isImport = line.startsWith("from") || line.startsWith("import");
+                            const isKeyword = /^\s*(with|for|if|def|class|return)\b/.test(line);
+                            return (
+                              <span key={i} style={{ color: isComment ? "#4a8060" : isImport ? "#c084fc" : isKeyword ? "#0ea5e9" : "#a8c7e8", display: "block" }}>{line}</span>
+                            );
+                          })}
+                        </pre>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Área de Iteração */}
+              {archId && !loading && (
+                <div style={{ background: "#0d1829", border: "1px solid #1e2d45", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0ea5e9" }}>Refinar Diagrama</div>
+                  <textarea
+                    placeholder="Ex: Mude o banco de dados para PostgreSQL..."
+                    value={iterationPrompt}
+                    onChange={(e) => setIterationPrompt(e.target.value)}
+                    style={{ background: "#0a0f1a", border: "1px solid #1e2d45", borderRadius: 8, padding: 12, color: "#e2e8f0", fontSize: 13, minHeight: 60, resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                    <button onClick={() => { setArchId(""); setImageUrl(""); setOutput(""); setDescription(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #4a6080", background: "transparent", color: "#a8c7e8", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>Concluir / Nova Arquitetura</button>
+                    <button onClick={generate} disabled={!iterationPrompt.trim() || loading} style={{ padding: "8px 16px", borderRadius: 8, background: "linear-gradient(135deg, #0ea5e9, #6366f1)", border: "none", color: "white", fontSize: 13, cursor: "pointer", fontWeight: 600, opacity: iterationPrompt.trim() ? 1 : 0.5 }}>Gerar nova versão</button>
+                  </div>
                 </div>
               )}
             </div>

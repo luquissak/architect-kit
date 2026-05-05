@@ -51,6 +51,7 @@ class GenerateResponse(BaseModel):
     image_url: str
     error: str | None = None
     audit_report: str | None = None
+    log: str | None = None
 
 @app.get("/api/history")
 async def list_history():
@@ -112,11 +113,18 @@ async def get_history_detail(arch_id: str):
     if not os.path.exists(os.path.join(arch_dir, f"v{latest_version}.png")):
         image_url = ""
         
+    log_path = os.path.join(arch_dir, "log.md")
+    log_content = ""
+    if os.path.exists(log_path):
+        with open(log_path, "r", encoding="utf-8") as f:
+            log_content = f.read()
+            
     return {
         "arch_id": arch_id,
         "version": latest_version,
         "content": code,
-        "image_url": image_url
+        "image_url": image_url,
+        "log": log_content
     }
 
 @app.post("/api/generate", response_model=GenerateResponse)
@@ -215,12 +223,19 @@ async def generate_diagram(request: GenerateRequest):
             if audit_result["status"] == "success":
                 audit_report = audit_result["findings"]
 
+        # Ler Log atualizado
+        current_log = ""
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                current_log = f.read()
+
         return GenerateResponse(
             content=clean_code,
             arch_id=arch_id,
             version=version,
             image_url=image_url,
-            audit_report=audit_report
+            audit_report=audit_report,
+            log=current_log
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))

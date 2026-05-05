@@ -69,6 +69,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("gerador");
+  const [log, setLog] = useState("");
+
   
   // History states
   const [history, setHistory] = useState([]);
@@ -108,6 +110,7 @@ export default function App() {
         setVersion(data.version);
         setOutput(data.content);
         setImageUrl(data.image_url ? data.image_url + "?t=" + new Date().getTime() : "");
+        setLog(data.log || "");
         setActiveTab("gerador");
       }
     } catch (e) {
@@ -178,6 +181,7 @@ Descriçao: ${description}`;
       setArchId(data.arch_id);
       setVersion(data.version);
       setAuditReport(data.audit_report || "");
+      setLog(data.log || "");
       
       if (data.error) {
         const errorComments = data.error.split('\\n').map(line => `# ${line}`).join('\\n');
@@ -555,6 +559,35 @@ Descriçao: ${description}`;
                   )}
                 </div>
               </div>
+
+              {/* Exibição do Log */}
+              {log && (
+                <div style={{
+                  background: "#0d1829",
+                  border: "1px solid #1e2d45",
+                  borderRadius: 12,
+                  padding: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0ea5e9" }}>Log de Alterações (log.md)</div>
+                  <div style={{ 
+                    maxHeight: "200px", 
+                    overflowY: "auto", 
+                    background: "#0a0f1a", 
+                    padding: "12px", 
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    color: "#6b8aaa",
+                    whiteSpace: "pre-wrap",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    border: "1px solid #1e2d45"
+                  }}>
+                    {log}
+                  </div>
+                </div>
+              )}
 
               {/* Área de Iteração */}
               {archId && !loading && (

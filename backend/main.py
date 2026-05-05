@@ -4,6 +4,8 @@ import uuid
 import re
 import glob
 import subprocess
+import datetime
+import unicodedata
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -27,11 +29,20 @@ app.add_middleware(
 os.makedirs("history", exist_ok=True)
 app.mount("/history", StaticFiles(directory="history"), name="history")
 
+def slugify(value):
+    value = str(value)
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
+    value = re.sub(r'[^\w\s-]', '', value).strip().lower()
+    return re.sub(r'[-\s]+', '-', value)
+
+from skills.security_audit_skill import SecurityAuditSkill
+
 class GenerateRequest(BaseModel):
     provider: str
     system_prompt: str
     user_prompt: str
     arch_id: str | None = None
+    run_audit: bool = False
 
 class GenerateResponse(BaseModel):
     content: str
@@ -39,20 +50,78 @@ class GenerateResponse(BaseModel):
     version: int
     image_url: str
     error: str | None = None
+    audit_report: str | None = None
+
+@app.get("/api/history")
+async def list_history():
+    history_dir = "history"
+    entries = []
+    if not os.path.exists(history_dir):
+        return entries
+        
+    for arch_id in os.listdir(history_dir):
+        arch_path = os.path.join(history_dir, arch_id)
+        if os.path.isdir(arch_path):
+            # Tentar extrair informações do log.md ou dos arquivos v*.py
+            name = arch_id
+            date = ""
+            
+            log_path = os.path.join(arch_path, "log.md")
+            if os.path.exists(log_path):
+                with open(log_path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    # Ex: ## Versão 1 - 2026-05-03 19:56:26
+                    match = re.search(r'Versão \d+ - (.*)', first_line)
+                    if match:
+                        date = match.group(1)
+            
+            entries.append({
+                "id": arch_id,
+                "name": name,
+                "date": date
+            })
+            
+    # Ordenar por data (assumindo que o ID começa com data YYYYMMDD)
+    entries.sort(key=lambda x: x["id"], reverse=True)
+    return entries
+
+@app.get("/api/history/{arch_id}")
+async def get_history_detail(arch_id: str):
+    arch_dir = os.path.join("history", arch_id)
+    if not os.path.exists(arch_dir):
+        raise HTTPException(status_code=404, detail="Arquitetura não encontrada")
+        
+    existing_py = glob.glob(os.path.join(arch_dir, "v*.py"))
+    if not existing_py:
+        raise HTTPException(status_code=404, detail="Nenhum código encontrado")
+        
+    # Pegar a versão mais recente
+    versions = []
+    for f in existing_py:
+        match = re.search(r'v(\d+)\.py', os.path.basename(f))
+        if match:
+            versions.append(int(match.group(1)))
+    
+    latest_version = max(versions)
+    py_path = os.path.join(arch_dir, f"v{latest_version}.py")
+    
+    with open(py_path, "r", encoding="utf-8") as f:
+        code = f.read()
+        
+    image_url = f"http://localhost:8000/history/{arch_id}/v{latest_version}.png"
+    if not os.path.exists(os.path.join(arch_dir, f"v{latest_version}.png")):
+        image_url = ""
+        
+    return {
+        "arch_id": arch_id,
+        "version": latest_version,
+        "content": code,
+        "image_url": image_url
+    }
 
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate_diagram(request: GenerateRequest):
     try:
-        arch_id = request.arch_id
-        if not arch_id:
-            arch_id = str(uuid.uuid4())
-        
-        arch_dir = os.path.join("history", arch_id)
-        os.makedirs(arch_dir, exist_ok=True)
-        
-        existing_py = glob.glob(os.path.join(arch_dir, "v*.py"))
-        version = len(existing_py) + 1
-        
         provider_instance = LLMFactory.get_provider(request.provider)
         modified_system_prompt = request.system_prompt + "\n\nCRITICAL INSTRUCTION: You MUST import `graph_attr` from `common_attr` (e.g. `import sys; sys.path.append(os.path.abspath('../..')); from common_attr import graph_attr`). You MUST pass `graph_attr=graph_attr` and `show=False` to the `Diagram()` class. Example: `with Diagram('Name', show=False, graph_attr=graph_attr):`. Do not include `filename`."
         
@@ -66,9 +135,31 @@ async def generate_diagram(request: GenerateRequest):
         if "show=False" not in clean_code:
             clean_code = re.sub(r'Diagram\((.*?)\)', r'Diagram(\1, show=False)', clean_code)
             
+        arch_id = request.arch_id
+        if not arch_id:
+            # Extrair título do Diagrama para compor o nome da pasta
+            title_match = re.search(r'Diagram\([\'"]([^\'"]+)[\'"]', clean_code)
+            title = title_match.group(1) if title_match else "arquitetura"
+            date_str = datetime.datetime.now().strftime("%Y%m%d")
+            unique_suffix = str(uuid.uuid4())[:8]
+            arch_id = f"{date_str}-{slugify(title)}-{unique_suffix}"
+        
+        arch_dir = os.path.join("history", arch_id)
+        os.makedirs(arch_dir, exist_ok=True)
+        
+        existing_py = glob.glob(os.path.join(arch_dir, "v*.py"))
+        version = len(existing_py) + 1
+        
         py_path = os.path.join(arch_dir, f"v{version}.py")
         with open(py_path, "w", encoding="utf-8") as f:
             f.write(clean_code)
+            
+        # Salvar Log
+        log_path = os.path.join(arch_dir, "log.md")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"## Versão {version} - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"**Prompt do Usuário:**\n{request.user_prompt}\n\n")
+            f.write("---\n")
             
         try:
             subprocess.run(
@@ -114,13 +205,25 @@ async def generate_diagram(request: GenerateRequest):
             if not os.path.exists(os.path.join(arch_dir, f"v{version}.png")):
                 image_url = ""
                 
+        audit_report = None
+        if request.run_audit:
+            audit_skill = SecurityAuditSkill()
+            audit_result = await audit_skill.run({
+                "code": clean_code,
+                "provider": request.provider
+            })
+            if audit_result["status"] == "success":
+                audit_report = audit_result["findings"]
+
         return GenerateResponse(
             content=clean_code,
             arch_id=arch_id,
             version=version,
-            image_url=image_url
+            image_url=image_url,
+            audit_report=audit_report
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

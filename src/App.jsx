@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const TEMPLATES = [
   {
@@ -69,6 +69,53 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("gerador");
+  
+  // History states
+  const [history, setHistory] = useState([]);
+  const [historySearch, setHistorySearch] = useState("");
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Skill states
+  const [runAudit, setRunAudit] = useState(false);
+  const [auditReport, setAuditReport] = useState("");
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch("/api/history");
+      if (response.ok) {
+        const data = await response.json();
+        setHistory(data);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar histórico:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const loadHistoryItem = async (id) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/history/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setArchId(data.arch_id);
+        setVersion(data.version);
+        setOutput(data.content);
+        setImageUrl(data.image_url ? data.image_url + "?t=" + new Date().getTime() : "");
+        setActiveTab("gerador");
+      }
+    } catch (e) {
+      console.error("Erro ao carregar item do histórico:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const applyTemplate = (tpl) => {
     setCloud(tpl.cloud);
@@ -99,7 +146,7 @@ export default function App() {
 Cloud: ${cloud}
 Padrão arquitetural: ${pattern}
 Nível de detalhe: ${detail}
-Descrição: ${description}`;
+Descriçao: ${description}`;
 
     try {
       const response = await fetch("/api/generate", {
@@ -111,7 +158,8 @@ Descrição: ${description}`;
           provider: provider,
           system_prompt: SYSTEM_PROMPT,
           user_prompt: userPrompt,
-          arch_id: archId || null
+          arch_id: archId || null,
+          run_audit: runAudit
         }),
       });
       const data = await response.json();
@@ -129,6 +177,7 @@ Descrição: ${description}`;
       
       setArchId(data.arch_id);
       setVersion(data.version);
+      setAuditReport(data.audit_report || "");
       
       if (data.error) {
         const errorComments = data.error.split('\\n').map(line => `# ${line}`).join('\\n');
@@ -136,6 +185,7 @@ Descrição: ${description}`;
       }
       
       setIterationPrompt("");
+      fetchHistory(); // Atualiza o histórico após gerar
     } catch (e) {
       setOutput("# Erro ao chamar a API. Verifique sua conexão ou API Key.\n# Detalhe: " + e.message);
     } finally {
@@ -148,6 +198,11 @@ Descrição: ${description}`;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const filteredHistory = history.filter(item => 
+    item.name.toLowerCase().includes(historySearch.toLowerCase()) || 
+    item.date.toLowerCase().includes(historySearch.toLowerCase())
+  );
 
   return (
     <div style={{
@@ -199,11 +254,81 @@ Descrição: ${description}`;
         </div>
       </div>
 
-      <div style={{ flex: 1, display: "flex" }}>
-        {/* Main */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* Sidebar Histórico */}
+        <div style={{
+          width: 280,
+          borderRight: "1px solid #1e2d45",
+          background: "#07101f",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden"
+        }}>
+          <div style={{ padding: "20px 20px 10px 20px" }}>
+            <div style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
+              Histórico
+            </div>
+            <div style={{ position: "relative" }}>
+              <input 
+                type="text" 
+                placeholder="Buscar no histórico..." 
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  background: "#0d1829",
+                  border: "1px solid #1e2d45",
+                  borderRadius: 6,
+                  padding: "8px 12px 8px 32px",
+                  fontSize: 12,
+                  color: "#e2e8f0",
+                  outline: "none"
+                }}
+              />
+              <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#4a6080", fontSize: 12 }}>
+                🔍
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px" }}>
+            {loadingHistory && history.length === 0 ? (
+              <div style={{ padding: 20, textAlign: "center", color: "#4a6080", fontSize: 12 }}>Carregando...</div>
+            ) : filteredHistory.length === 0 ? (
+              <div style={{ padding: 20, textAlign: "center", color: "#4a6080", fontSize: 12 }}>Nenhum item encontrado.</div>
+            ) : (
+              filteredHistory.map(item => (
+                <div 
+                  key={item.id} 
+                  onClick={() => loadHistoryItem(item.id)}
+                  style={{
+                    padding: "12px 15px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    background: archId === item.id ? "#0ea5e915" : "transparent",
+                    border: archId === item.id ? "1px solid #0ea5e930" : "1px solid transparent",
+                    marginBottom: 4,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => { if(archId !== item.id) e.currentTarget.style.background = "#1e2d4550"; }}
+                  onMouseLeave={(e) => { if(archId !== item.id) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, color: archId === item.id ? "#0ea5e9" : "#cbd5e1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.name.split('-').slice(1, -1).join(' ') || item.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#4a6080", marginTop: 4 }}>
+                    {item.date || "Sem data"}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Main Content */}
         {activeTab === "gerador" && (
-          <div style={{ flex: 1, display: "flex", gap: 0 }}>
-            {/* Left Panel */}
+          <div style={{ flex: 1, display: "flex", gap: 0, overflow: "hidden" }}>
+            {/* Left Panel (Controls) */}
             <div style={{
               width: 340,
               borderRight: "1px solid #1e2d45",
@@ -211,6 +336,7 @@ Descrição: ${description}`;
               display: "flex",
               flexDirection: "column",
               gap: 20,
+              overflowY: "auto"
             }}>
               <div>
                 <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
@@ -285,6 +411,30 @@ Descrição: ${description}`;
                 </div>
               </div>
 
+              <div>
+                <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Skills Adicionais
+                </label>
+                <div style={{ marginTop: 8 }}>
+                  <button 
+                    onClick={() => setRunAudit(!runAudit)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: runAudit ? "1px solid #10b981" : "1px solid #1e2d45",
+                      background: runAudit ? "#10b98115" : "#0d1829",
+                      color: runAudit ? "#10b981" : "#6b8aaa",
+                      fontSize: 12, cursor: "pointer", fontWeight: 500,
+                      display: "flex", alignItems: "center", gap: 8
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{runAudit ? "🛡️" : "🛡️"}</span>
+                    Auditoria de Segurança {runAudit ? "(Ativa)" : "(Inativa)"}
+                  </button>
+                </div>
+              </div>
+
               <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 <label style={{ fontSize: 11, color: "#4a8ab5", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Descrição da Solução
@@ -341,7 +491,8 @@ Descrição: ${description}`;
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                overflow: "hidden"
+                overflow: "hidden",
+                minHeight: 400
               }}>
                 <div style={{
                   padding: "12px 20px",
@@ -427,7 +578,7 @@ Descrição: ${description}`;
 
         {/* Templates Tab */}
         {activeTab === "templates" && (
-          <div style={{ flex: 1, padding: 32 }}>
+          <div style={{ flex: 1, padding: 32, overflowY: "auto" }}>
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.3px" }}>
                 Templates de Pré-Vendas
@@ -487,3 +638,5 @@ Descrição: ${description}`;
     </div>
   );
 }
+
+

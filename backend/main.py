@@ -148,9 +148,9 @@ async def generate_diagram(request: GenerateRequest):
             # Extrair título do Diagrama para compor o nome da pasta
             title_match = re.search(r'Diagram\([\'"]([^\'"]+)[\'"]', clean_code)
             title = title_match.group(1) if title_match else "arquitetura"
-            date_str = datetime.datetime.now().strftime("%Y%m%d")
+            datetime_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             unique_suffix = str(uuid.uuid4())[:8]
-            arch_id = f"{date_str}-{slugify(title)}-{unique_suffix}"
+            arch_id = f"{datetime_str}-{slugify(title)}-{unique_suffix}"
         
         arch_dir = os.path.join("history", arch_id)
         os.makedirs(arch_dir, exist_ok=True)

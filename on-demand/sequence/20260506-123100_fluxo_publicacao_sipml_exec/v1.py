@@ -1,0 +1,86 @@
+import os
+from pathlib import Path
+from pyplantuml import generate_uml_png
+
+PUML = r"""@startuml
+skinparam linestyle ortho
+skinparam shadowing false
+skinparam BoxPadding 10
+skinparam ParticipantPadding 15
+
+title Fluxo de Publicacao (Executivo) - SIPML
+
+actor "Modelador" as MOD #LightGray
+box "Spoke de Modelagem (prj-spoke-modelagem)" #LightBlue
+    participant "Vertex AI Workbench\n(Notebooks)" as WB
+    participant "Vertex AI Pipelines\n(Treino + Avaliacao)" as PIPE
+end box
+
+box "Ecossistema DevOps" #LightGray
+    participant "GitHub\n(Repositorio)" as GH
+    participant "CI/CD\n(GitHub Actions)" as CI
+end box
+
+box "Spoke de Inferencia (prj-spoke-inferencia)" #LightGreen
+    participant "Vertex AI\nModel Registry" as REG
+    participant "Vertex AI\nEndpoint Produtivo" as END
+end box
+
+' =========================================================================
+' JORNADA DO FLUXO DE PUBLICACAO DE MODELOS
+' =========================================================================
+
+MOD -> WB: 1) Desenvolve experimento e codigo do pipeline
+activate WB
+
+WB -> GH: 2) Commit / Push do codigo homologado
+deactivate WB
+activate GH
+
+GH -> CI: 3) Dispara automacao de CI/CD (gatilho de tag/branch)
+deactivate GH
+activate CI
+
+CI -> PIPE: 4) Orquestra a execucao do pipeline de treino
+activate PIPE
+
+note over PIPE
+  Pipeline executa engenharia de features,
+  treinamento distribuido e validacao cruzada
+end note
+
+alt Cenario: Modelo Aprovado (Metricas de Validacao OK)
+    PIPE -> REG: 5) Registra e promove nova versao estavel do modelo
+    activate REG
+    REG -> END: 6) Disponibiliza artefato para atualizacao/traffic-splitting do endpoint
+    activate END
+    deactivate END
+    deactivate REG
+else Cenario: Modelo Reprovado (Performance abaixo do Baseline)
+    PIPE --> MOD: Feedback de erro/degradacao (interrompe o deploy)
+end
+
+deactivate PIPE
+deactivate CI
+
+@enduml"""
+
+def main():
+    # Garante a criação do diretório de saída caso não exista
+    output_dir = Path("./")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    out_file = output_dir / "v1.puml"
+    out_file.write_text(PUML.strip() + "\n", encoding="utf-8")
+    print(f"Arquivo PlantUML gerado com sucesso em: {out_file.resolve()}")
+
+    # Geração da imagem PNG
+    print("Gerando imagem PNG...")
+    try:
+        generate_uml_png(PUML.strip(), "v1.png")
+        print(f"Imagem gerada com sucesso: {(output_dir / 'v1.png').resolve()}")
+    except Exception as e:
+        print(f"Erro ao gerar imagem: {e}")
+
+if __name__ == "__main__":
+    main()

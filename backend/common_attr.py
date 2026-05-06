@@ -1,10 +1,9 @@
 graph_attr = {
     "fontname": "Arial",
-    "fontsize": "24",
-    "ranksep": "0.4",  # Diminui o comprimento total entre as camadas
-    "nodesep": "0.3",  # Estreita as caixas de componentes (como VPC/VPN)
-    "pad": "0.1",
-    "size": "10,5!",   # Proporção menos "esticada", ideal para preencher o slide sem sobras
-    "ratio": "fill",
-    "dpi": "400"
+    "fontsize": "16",       # Tamanho de fonte mais equilibrado para títulos de clusters
+    "ranksep": "0.8",      # Espaço ideal entre as colunas (camadas)
+    "nodesep": "0.5",      # Espaço ideal entre componentes na mesma coluna
+    "pad": "0.3",          # Margem interna do diagrama para não cortar bordas
+    "splines": "ortho",    # Força linhas ortogonais (90 graus), deixando o diagrama muito mais corporativo/limpo
+    "dpi": "300"
 }

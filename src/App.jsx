@@ -36,6 +36,13 @@ const TEMPLATES = [
     detail: "executivo",
     description: "Landing zone multi-cloud para dados corporativos: governança centralizada, data mesh com domínios de dados independentes em GCP e Azure, federação de identidade, segurança perimetral e catálogo unificado com tags e políticas de acesso.",
   },
+  {
+    label: "Layout Corporativo (Camadas)",
+    cloud: "Multi-cloud",
+    pattern: "Personalizado",
+    detail: "técnico",
+    description: "Atue como um Arquiteto de Soluções especialista em Engenharia de Infraestrutura e Automação de Diagramas com a biblioteca `diagrams` do Python.\n\nQuero desenhar um diagrama de arquitetura baseado em camadas lógicas (colunas sequenciais). Para garantir um alinhamento perfeito, simetria e padrão corporativo, você DEVE seguir rigidamente as seguintes diretrizes de design:\n\n1. DIREÇÃO: Use sempre `direction=\"LR\"` (Left to Right) para representar o fluxo cronológico das camadas em colunas verticais.\n2. LINHAS ORTOGONAIS: Configure o atributo do grafo \"splines\": \"ortho\" para forçar conexões em ângulos retos de 90 graus, evitando o efeito \"teia de aranha\".\n3. CONTROLE DE RANKING (A Espinha Dorsal Invisível): Para evitar que o Graphviz embaralhe as posições das camadas, você deve criar uma cadeia de conexões ocultas entre o nó principal de cada camada sequencial no final do script usando `>> Edge(style=\"invis\") >>`.\n4. FLUXO RETRÓGRADO: Se um componente da Camada Posterior precisar se conectar a um componente da Camada Anterior, use propriedades como `dir=\"back\"` ou inverta a declaração da conexão para que o Graphviz não empurre a camada para trás no desenho.\n5. ISOLAMENTO LÓGICO: Cada camada deve estar encapsulada em um bloco `with Cluster(\"Camada X: Nome\")`.\n\nAqui estão os componentes e as camadas do diagrama atual que preciso:\n[INSIRA OS SEUS COMPONENTES E CAMADAS AQUI]",
+  },
 ];
 
 const CLOUDS = ["GCP", "AWS", "Azure", "Multi-cloud"];

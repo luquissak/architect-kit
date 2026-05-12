@@ -35,6 +35,58 @@ def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value).strip().lower()
     return re.sub(r'[-\s]+', '-', value)
 
+def load_diagram_mappings():
+    mappings = {}
+    # Procurar no diretório backend ou na raiz
+    mapping_file = "diagram_mappings.md"
+    if not os.path.exists(mapping_file):
+        mapping_file = os.path.join(os.path.dirname(__file__), "diagram_mappings.md")
+        
+    if os.path.exists(mapping_file):
+        with open(mapping_file, "r", encoding="utf-8") as f:
+            content = f.read()
+            # Padrão para extrair das tabelas MD: | `de` | ... | `para` |
+            matches = re.findall(r'\| `(.*?)` \|.*?\| `(.*?)` \|', content)
+            for original, alternative in matches:
+                mappings[original.strip()] = alternative.strip()
+    return mappings
+
+def apply_diagram_fixes(py_path, error_message):
+    mappings = load_diagram_mappings()
+    with open(py_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    modified = False
+    # Tentar substituições de caminhos completos ou parciais
+    for original, alternative in mappings.items():
+        # Se o erro cita o nome que temos mapeado
+        if original in content and (original in error_message or original.split('.')[-1] in error_message):
+            content = content.replace(original, alternative)
+            modified = True
+        
+        # Caso o mapeamento seja no formato provedor.classe (ex: onprem.database.SQLServer)
+        elif "." in original:
+            parts = original.split(".")
+            class_name = parts[-1]
+            module_path = ".".join(parts[:-1])
+            if class_name in error_message and module_path in error_message:
+                # Tenta substituir a linha de import ou a classe
+                # Ex: from diagrams.onprem.database import SQLServer -> from diagrams.azure.database import SQLDatabases
+                old_import = f"from diagrams.{module_path} import {class_name}"
+                new_parts = alternative.split(".")
+                new_class = new_parts[-1]
+                new_module = ".".join(new_parts[:-1])
+                new_import = f"from diagrams.{new_module} import {new_class} as {class_name}"
+                
+                if old_import in content:
+                    content = content.replace(old_import, new_import)
+                    modified = True
+
+    if modified:
+        with open(py_path, "w", encoding="utf-8") as f:
+            f.write(content)
+    return modified
+
 from skills.security_audit_skill import SecurityAuditSkill
 
 class GenerateRequest(BaseModel):
@@ -170,6 +222,7 @@ async def generate_diagram(request: GenerateRequest):
             f.write("---\n")
             
         try:
+            # Primeira tentativa de execução
             subprocess.run(
                 [sys.executable, f"v{version}.py"],
                 cwd=arch_dir,
@@ -179,13 +232,34 @@ async def generate_diagram(request: GenerateRequest):
                 timeout=30
             )
         except subprocess.CalledProcessError as e:
-            return GenerateResponse(
-                content=clean_code,
-                arch_id=arch_id,
-                version=version,
-                image_url="",
-                error=f"Erro de execução:\n{e.stderr}"
-            )
+            # Tentar aplicar correções automáticas
+            if apply_diagram_fixes(py_path, e.stderr):
+                try:
+                    # Segunda tentativa após fix
+                    subprocess.run(
+                        [sys.executable, f"v{version}.py"],
+                        cwd=arch_dir,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                except subprocess.CalledProcessError as e2:
+                    return GenerateResponse(
+                        content=clean_code,
+                        arch_id=arch_id,
+                        version=version,
+                        image_url="",
+                        error=f"Erro após tentativa de correção automática:\n{e2.stderr}"
+                    )
+            else:
+                return GenerateResponse(
+                    content=clean_code,
+                    arch_id=arch_id,
+                    version=version,
+                    image_url="",
+                    error=f"Erro de execução:\n{e.stderr}"
+                )
             
         png_files = glob.glob(os.path.join(arch_dir, "*.png"))
         if not png_files:

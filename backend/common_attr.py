@@ -5,5 +5,5 @@ graph_attr = {
     "nodesep": "0.5",      # Espaço ideal entre componentes na mesma coluna
     "pad": "0.3",          # Margem interna do diagrama para não cortar bordas
     "splines": "ortho",    # Força linhas ortogonais (90 graus), deixando o diagrama muito mais corporativo/limpo
-    "dpi": "300"
+    "dpi": "600"
 }

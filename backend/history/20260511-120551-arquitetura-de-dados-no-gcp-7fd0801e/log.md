@@ -838,3 +838,13 @@ with Diagram("Arquitetura de Dados Simplificada no GCP", show=False, direction="
 # -----------------------------------------------------------
 
 ---
+## Versão 7 - 2026-05-11 17:18:56
+**Prompt do Usuário:**
+Temos o diagrama versão 6. Por favor, modifique o código Python existente de acordo com este novo pedido: mude o ícone do dialogflow para big query, são agentes conversacionais do BQ
+
+
+Código anterior:
+# Erro ao chamar a API. Verifique sua conexão ou API Key.
+# Detalhe: ANTHROPIC_API_KEY não configurada no backend.
+
+---

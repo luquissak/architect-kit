@@ -415,3 +415,295 @@ with Diagram("Lakehouse GCP - Hubs de Dados Operacionais", show=False, direction
 # ==============================================================================
 
 ---
+## Versão 5 - 2026-05-13 11:26:36
+**Prompt do Usuário:**
+Temos o diagrama versão 4. Por favor, modifique o código Python existente de acordo com este novo pedido: gere uma ligação entre spanner e big query
+
+
+Código anterior:
+# Erro ao chamar a API. Verifique sua conexão ou API Key.
+# Detalhe: ANTHROPIC_API_KEY não configurada no backend.
+
+---
+## Versão 6 - 2026-05-13 12:18:59
+**Prompt do Usuário:**
+Temos o diagrama versão 5. Por favor, modifique o código Python existente de acordo com este novo pedido: Aqui está a versão consolidada e final do prompt, contendo todas as regras, importações corrigidas, a adição do Spanner com sua respectiva ligação, e o título do projeto devidamente atualizado:
+
+---
+
+**Prompt:**
+
+Atue como um Engenheiro de Dados e Arquiteto Cloud GCP sênior. Quero gerar o código em Python usando a biblioteca `diagrams` para representar a esteira de ingestão e processamento focada exclusivamente nos "Hubs de Dados Operacionais" da plataforma SIPML. O título do diagrama deve ser **"Automação Célula VIP"**.
+
+O diagrama deve seguir o padrão de arquitetura em camadas estruturado rigorosamente da esquerda para a direita (`direction="LR"`), com conexões ortogonais (`"splines": "ortho"` configurado via arquivo externo `common_attr`) e uma espinha dorsal invisível ao final do script para garantir o perfeito alinhamento vertical das colunas.
+
+### 🏛️ Estrutura de Camadas e Clusters Lógicos
+
+Organize o diagrama nas seguintes colunas lógicas sequenciais:
+
+**1. CAMADA 1 (Extrema Esquerda): "Origens - Múltiplos Hubs de Dados Operacionais"**
+Agrupe em um cluster que represente a multiplicidade e os diferentes meios de ingestão:
+
+* Componente 1: `PubSub` ("Hub Operacional\n(Streaming / Eventos)")
+* Componente 2: `Storage` ("Hub Operacional\n(Arquivos / Lote)")
+* Componente 3: `APIGateway` ("Hub Operacional\n(APIs / Transacional)")
+
+**2. CAMADA 2 (Centro-Esquerda): "Ingestão e Landing Estágio"**
+Zona de decolagem de mensagens e persistência temporária:
+
+* `PubSub` ("Pub/Sub\n(Ingestão Streaming)")
+* `Storage` ("Cloud Storage\n(Landing / Raw Data)")
+
+**3. CAMADA 3 (Centro-Direita): "Motores de Processamento (Feature Engineering)"**
+Cluster unificado chamado "Camada de Processamento":
+
+* `Dataflow` ("Cloud Dataflow\n(Apache Beam)")
+* `Dataproc` ("Cloud Dataproc\n(Apache Spark)")
+
+**4. CAMADA 4 (Extrema Direita): "Destinos Operacionais e Serving"**
+Componentes finais para consumo de baixa latência e histórico:
+
+* `BigQuery` ("BigQuery\n(Repositório de Features - Serving)")
+* `Spanner` ("Cloud Spanner\n(Operacional)")
+* `AIPlatform` ("Vertex AI Feature Store\n(Online Serving)")
+
+### 🔀 Fluxos de Conectividade e Transformação de Dados
+
+Mapeie as conexões de maneira linear, sempre avançando da esquerda para a direita:
+
+* O Hub de Streaming envia dados diretamente para o Pub/Sub da Ingestão.
+* O Hub de Arquivos/Lote realiza o upload diretamente no Cloud Storage de Landing.
+* O Hub de APIs envia dados de transações para o Pub/Sub de ingestão e para o Cloud Storage de Landing.
+* **Camada de processamento:**
+* O Pub/Sub de Ingestão direciona dados em tempo real para o Dataflow.
+* O Cloud Storage de Landing fornece dados em lote para ambos os motores (Dataflow e Dataproc).
+
+
+* **Camada de destino:**
+* O Dataflow salva dados no BigQuery e no Cloud Spanner.
+* O Dataproc salva dados no BigQuery.
+* O Cloud Spanner envia/sincroniza dados com o BigQuery.
+* O BigQuery alimenta o Vertex AI Feature Store.
+
+
+
+### 🔐 Instruções Críticas de Sintaxe Python
+
+Para evitar erros de `ImportError`, certifique-se de realizar as importações exatas abaixo:
+
+* `from diagrams.gcp.analytics import PubSub, Dataflow, Dataproc, BigQuery`
+* `from diagrams.gcp.storage import Storage`
+* `from diagrams.gcp.api import APIGateway`
+* `from diagrams.gcp.ml import AIPlatform`
+* `from diagrams.gcp.database import Spanner`
+
+Gere o código Python completo baseado nessas especificações técnicas. Nenhuma outra explicação é necessária além do código e dos comentários de instrução de execução ao final.
+
+Código anterior:
+from diagrams import Diagram, Cluster
+from diagrams.gcp.analytics import Pubsub, Dataflow, Bigquery
+from diagrams.gcp.database import Spanner
+from diagrams.gcp.storage import GCS
+from diagrams.gcp.ml import AIPlatform
+from diagrams.onprem.client import Users
+import sys
+import os
+
+# Importação obrigatória dos atributos comuns (graph_attr)
+sys.path.append(os.path.abspath('../..'))
+from common_attr import graph_attr
+
+# Criação do diagrama omitindo 'filename' e passando graph_attr e show=False
+with Diagram("GCP Data Architecture - Spanner & BigQuery", show=False, direction="LR", graph_attr=graph_attr):
+
+    with Cluster("Camada de Ingestão"):
+        # Recebimento de eventos e processamento (ETL/ELT)
+        pubsub = Pubsub("Pub/Sub\n(Mensageria)")
+        dataflow = Dataflow("Dataflow\n(Stream/Batch)")
+
+    with Cluster("Camada de Armazenamento"):
+        # Storage para dados brutos e banco transacional altamente escalável
+        gcs = GCS("Cloud Storage\n(Raw Data)")
+        spanner = Spanner("Cloud Spanner\n(Transacional)")
+
+    with Cluster("Camada de Processamento"):
+        # Data Warehouse analítico
+        bq = Bigquery("BigQuery\n(DW)")
+
+    with Cluster("Camada de Consumo"):
+        # Treinamento de IA e consumo por área de negócios
+        vertex = AIPlatform("Vertex AI")
+        users = Users("Analistas / BI")
+
+    # Fluxo de ingestão de dados
+    pubsub >> dataflow
+    dataflow >> gcs
+    dataflow >> spanner
+
+    # Carga de dados do Data Lake para o Data Warehouse
+    gcs >> bq
+
+    # LIGAÇÃO SOLICITADA: Integração direta entre Spanner e BigQuery 
+    # (Representando Federated Queries ou Datastream)
+    spanner >> bq
+
+    # Fluxo de consumo dos dados processados
+    bq >> vertex
+    bq >> users
+
+    # ========================================================================
+    # Instruções de Instalação e Execução:
+    # 1. Instale o Graphviz no seu Sistema Operacional (ex: apt-get install graphviz)
+    # 2. Instale a biblioteca Python: pip install diagrams
+    # 3. Execute este script: python nome_do_arquivo.py
+    # ========================================================================
+
+---
+## Versão 7 - 2026-05-13 14:17:56
+**Prompt do Usuário:**
+Temos o diagrama versão 6. Por favor, modifique o código Python existente de acordo com este novo pedido: Aqui está a versão ajustada do prompt, incorporando a alteração do título e a nova lógica de conexões na camada de destinos (comunicação bidirecional entre BigQuery e Spanner, e o Vertex AI recebendo dados diretamente da camada 3):
+
+---
+
+**Prompt:**
+
+Atue como um Engenheiro de Dados e Arquiteto Cloud GCP sênior. Quero gerar o código em Python usando a biblioteca `diagrams` para representar a esteira de ingestão e processamento focada exclusivamente na plataforma SIPML. O título do diagrama deve ser **"Hubs de Dados Operacionais"**.
+
+O diagrama deve seguir o padrão de arquitetura em camadas estruturado rigorosamente da esquerda para a direita (`direction="LR"`), com conexões ortogonais (`"splines": "ortho"` configurado via arquivo externo `common_attr`) e uma espinha dorsal invisível ao final do script para garantir o perfeito alinhamento vertical das colunas.
+
+### 🏛️ Estrutura de Camadas e Clusters Lógicos
+
+Organize o diagrama nas seguintes colunas lógicas sequenciais:
+
+**1. CAMADA 1 (Extrema Esquerda): "Origens - Múltiplos Hubs de Dados Operacionais"**
+Agrupe em um cluster que represente a multiplicidade e os diferentes meios de ingestão:
+
+* Componente 1: `PubSub` ("Hub Operacional\n(Streaming / Eventos)")
+* Componente 2: `Storage` ("Hub Operacional\n(Arquivos / Lote)")
+* Componente 3: `APIGateway` ("Hub Operacional\n(APIs / Transacional)")
+
+**2. CAMADA 2 (Centro-Esquerda): "Ingestão e Landing Estágio"**
+Zona de decolagem de mensagens e persistência temporária:
+
+* `PubSub` ("Pub/Sub\n(Ingestão Streaming)")
+* `Storage` ("Cloud Storage\n(Landing / Raw Data)")
+
+**3. CAMADA 3 (Centro-Direita): "Motores de Processamento (Feature Engineering)"**
+Cluster unificado chamado "Camada de Processamento":
+
+* `Dataflow` ("Cloud Dataflow\n(Apache Beam)")
+* `Dataproc` ("Cloud Dataproc\n(Apache Spark)")
+
+**4. CAMADA 4 (Extrema Direita): "Destinos Operacionais e Serving"**
+Componentes finais para consumo de baixa latência e histórico:
+
+* `BigQuery` ("BigQuery\n(Repositório de Features - Serving)")
+* `Spanner` ("Cloud Spanner\n(Operacional)")
+* `AIPlatform` ("Vertex AI Feature Store\n(Online Serving)")
+
+### 🔀 Fluxos de Conectividade e Transformação de Dados
+
+Mapeie as conexões de maneira linear, sempre avançando da esquerda para a direita:
+
+* O Hub de Streaming envia dados diretamente para o Pub/Sub da Ingestão.
+* O Hub de Arquivos/Lote realiza o upload diretamente no Cloud Storage de Landing.
+* O Hub de APIs envia dados de transações para o Pub/Sub de ingestão e para o Cloud Storage de Landing.
+* **Camada de processamento:**
+* O Pub/Sub de Ingestão direciona dados em tempo real para o Dataflow.
+* O Cloud Storage de Landing fornece dados em lote para ambos os motores (Dataflow e Dataproc).
+
+
+* **Camada de destino (Conexões da Camada 3 para a 4 e internas):**
+* O Dataflow salva os dados processados no BigQuery, no Cloud Spanner e também envia diretamente para o Vertex AI Feature Store.
+* O Dataproc salva os dados processados no BigQuery e envia diretamente para o Vertex AI Feature Store.
+* O BigQuery e o Cloud Spanner possuem uma conexão bidirecional entre si (`dest_bq - dest_spanner` ou envio mútuo).
+* *(Atenção: BigQuery e Spanner NÃO devem se conectar ao Vertex AI)*.
+
+
+
+### 🔐 Instruções Críticas de Sintaxe Python
+
+Para evitar erros de `ImportError`, certifique-se de realizar as importações exatas abaixo:
+
+* `from diagrams.gcp.analytics import PubSub, Dataflow, Dataproc, BigQuery`
+* `from diagrams.gcp.storage import Storage`
+* `from diagrams.gcp.api import APIGateway`
+* `from diagrams.gcp.ml import AIPlatform`
+* `from diagrams.gcp.database import Spanner`
+
+Gere o código Python completo baseado nessas especificações técnicas. Nenhuma outra explicação é necessária além do código e dos comentários de instrução de execução ao final.
+
+Código anterior:
+from diagrams import Diagram, Cluster, Edge
+from diagrams.gcp.analytics import PubSub, Dataflow, Dataproc, BigQuery
+from diagrams.gcp.storage import Storage
+from diagrams.gcp.api import APIGateway
+from diagrams.gcp.ml import AIPlatform
+from diagrams.gcp.database import Spanner
+import sys
+import os
+
+# Importação obrigatória dos atributos comuns (graph_attr)
+sys.path.append(os.path.abspath('../..'))
+from common_attr import graph_attr
+
+# Criação do diagrama omitindo 'filename' e passando graph_attr e show=False
+with Diagram("Automação Célula VIP", show=False, direction="LR", graph_attr=graph_attr):
+
+    # CAMADA 1 (Extrema Esquerda): Origens
+    with Cluster("Origens - Múltiplos Hubs de Dados Operacionais"):
+        hub_stream = PubSub("Hub Operacional\n(Streaming / Eventos)")
+        hub_batch = Storage("Hub Operacional\n(Arquivos / Lote)")
+        hub_api = APIGateway("Hub Operacional\n(APIs / Transacional)")
+
+    # CAMADA 2 (Centro-Esquerda): Ingestão e Landing Estágio
+    with Cluster("Ingestão e Landing Estágio"):
+        ingest_pubsub = PubSub("Pub/Sub\n(Ingestão Streaming)")
+        ingest_storage = Storage("Cloud Storage\n(Landing / Raw Data)")
+
+    # CAMADA 3 (Centro-Direita): Motores de Processamento (Feature Engineering)
+    with Cluster("Camada de Processamento"):
+        proc_dataflow = Dataflow("Cloud Dataflow\n(Apache Beam)")
+        proc_dataproc = Dataproc("Cloud Dataproc\n(Apache Spark)")
+
+    # CAMADA 4 (Extrema Direita): Destinos Operacionais e Serving
+    with Cluster("Destinos Operacionais e Serving"):
+        dest_spanner = Spanner("Cloud Spanner\n(Operacional)")
+        dest_bq = BigQuery("BigQuery\n(Repositório de Features - Serving)")
+        dest_ai = AIPlatform("Vertex AI Feature Store\n(Online Serving)")
+
+    # =========================================================
+    # FLUXOS DE CONECTIVIDADE
+    # =========================================================
+
+    # De Origens para Ingestão
+    hub_stream >> ingest_pubsub
+    hub_batch >> ingest_storage
+    hub_api >> ingest_pubsub
+    hub_api >> ingest_storage
+
+    # De Ingestão para Processamento
+    ingest_pubsub >> proc_dataflow
+    ingest_storage >> proc_dataflow
+    ingest_storage >> proc_dataproc
+
+    # De Processamento para Destinos
+    proc_dataflow >> dest_bq
+    proc_dataflow >> dest_spanner
+    proc_dataproc >> dest_bq
+    
+    # Integrações entre bases e serving na Camada Final
+    dest_spanner >> dest_bq
+    dest_bq >> dest_ai
+
+    # Espinha dorsal invisível para garantir o perfeito alinhamento vertical estruturado (LR)
+    hub_batch >> Edge(style="invis") >> ingest_storage >> Edge(style="invis") >> proc_dataflow >> Edge(style="invis") >> dest_bq
+
+# ========================================================================
+# Instruções de Instalação e Execução:
+# 1. Instale o Graphviz no seu Sistema Operacional (ex: apt-get install graphviz)
+# 2. Instale a biblioteca Python: pip install diagrams
+# 3. Execute este script: python nome_do_arquivo.py
+# ========================================================================
+
+---

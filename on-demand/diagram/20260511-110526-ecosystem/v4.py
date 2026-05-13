@@ -82,9 +82,9 @@ with Diagram("MLOps Network and Security Ecosystem - SIPML v4", show=False, dire
         vertex_endpoint >> Edge(label="Telemetria") >> model_monitor >> bq_logs
 
     # 5. ECOSSISTEMA EXTERNO (Extremo Topo Direita)
-    with Cluster("Bureaus de Crédito Externos"):
+    with Cluster("Bureaus Externos"):
         # Ajuste: Rótulo simplificado conforme solicitado
-        bureaus = Server("Bureaus")
+        bureaus = Server("APIs")
 
     # ==========================================
     # FLUXOS GLOBAIS E REGRAS DE NEGÓCIO

@@ -48,8 +48,9 @@ def load_diagram_mappings():
             # Padrão para extrair das tabelas MD: | `de` | ... | `para` |
             matches = re.findall(r'\| `(.*?)` \|.*?\| `(.*?)` \|', content)
             for original, alternative in matches:
-                mappings[original.strip()] = alternative.strip()
+                mappings[original.strip()] = alternative.strip().replace('\\n', '\n')
     return mappings
+
 
 def apply_diagram_fixes(py_path, error_message):
     mappings = load_diagram_mappings()

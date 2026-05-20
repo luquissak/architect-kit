@@ -8,14 +8,13 @@ platform_mock.system.return_value = 'Windows'
 sys.modules['platform'] = platform_mock
 
 from diagrams import Cluster, Diagram, Edge
-from diagrams.onprem.client import User
-from diagrams.gcp.network import VPC
-from diagrams.gcp.compute import GKE
+from diagrams.onprem.client import Users
+from diagrams.gcp.network import LoadBalancing
+from diagrams.gcp.security import IAP
 from diagrams.gcp.ml import TPU
 from diagrams.gcp.storage import Storage
 from diagrams.gcp.devtools import ContainerRegistry
-from diagrams.gcp.security import Iam
-from diagrams.k8s.compute import Pod, Job
+from diagrams.k8s.compute import Deployment
 from diagrams.k8s.network import Service
 
 # Importação obrigatória dos atributos comuns de grafo e injeção do diretório
@@ -38,85 +37,90 @@ graph_attr.update({"splines": "ortho", "nodesep": "0.8", "ranksep": "1.2", "dpi"
 
 def generate_diagram(outformat):
     with Diagram(
-        name="GKE TPU v6e Fine-Tuning Architecture (southamerica-east1)",
+        name="Caixa GKE Private Jupyter Lab Architecture (southamerica-east1-c)",
         show=False,
-        filename="gke_tpu_southamerica_architecture",
+        filename="gke_caixa_internal_lb_iap",
         direction="LR",
         graph_attr=graph_attr,
         outformat=outformat
     ):
-        # Cientista de dados / Arquiteto na ponta externa
-        developer = User("Arquiteto / Dev\n(Estacao Local)")
+        # Usuários Caixa conectados à rede interna/perímetro corporativo (VPN ou Interconnect)
+        caixa_users = Users("Usuarios Caixa\n(Perimetro Interno)")
 
-        with Cluster("Google Cloud Platform - Regiao: southamerica-west1"):
-            # Segurança IAM e Registros de Recursos Globais / Regionais
-            iap = Iam("Identity-Aware Proxy\n(IAP-secured Tunnel)")
-            artifact_registry = ContainerRegistry("Artifact Registry\n(SouthAmerica Docker Repo)")
-            gcs_bucket = Storage("Cloud Storage Bucket\n(Gemma weights & datasets)")
+        with Cluster("Google Cloud Project (GCP)"):
+            
+            # Recursos globais/regionais de armazenamento de imagens e dados
+            artifact_registry = ContainerRegistry("Artifact Registry\n(Custom Dev Image)")
+            gcs_bucket = Storage("Cloud Storage Bucket\n(Gemma Weights & Datasets)")
 
-            with Cluster("VPC Network (VPC Privada)"):
-                with Cluster("Subnet: southamerica-east1-a"):
+            with Cluster("VPC Network (Rede Privada)"):
+                
+                # Componentes do Balanceamento e Autenticação de Entrada
+                with Cluster("Regional Ingress Security Layer"):
+                    # O IAP é associado ao backend service do balanceador regional interno
+                    iap_auth = IAP("Identity-Aware Proxy\n(IAP para ILB)")
                     
-                    # Instanciação do GKE Enterprise/Standard Cluster
-                    with Cluster("GKE Cluster (Autopilot / Standard)"):
-                        gke_control_plane = GKE("GKE Control Plane")
+                    # Load Balancer de Aplicação Regional Interno (ILB HTTPS/HTTP)
+                    internal_lb = LoadBalancing("Internal Load Balancer\n(http://10.8.8.8)")
 
-                        # Cluster lógico para os Pods/Jobs que rodam as aplicações
-                        with Cluster("Kubernetes Pods Namespace"):
-                            k8s_service = Service("K8s Service\n(Porta 8888 & 8080)")
-                            gdev_pod = Pod("Pod: Dev Environment\n(Jupyter + VS Code)")
-                            train_job = Job("Job: Fine-Tuning\n(Gemma Gemma3LLMTrain)")
+                with Cluster("Subnet: southamerica-east1 (Sao Paulo)"):
+                    
+                    # Nós e Pods do GKE em rede totalmente privada
+                    with Cluster("GKE Private Cluster (southamerica-east1-c)"):
+                        
+                        # K8s Service expondo os Pods internamente na rede via NEG (Network Endpoint Group)
+                        k8s_service = Service("K8s Service\n(Jupyter HTTP:8888)")
+                        
+                        # Deployment que orquestra os Pods do Jupyter Server
+                        jupyter_app = Deployment("Jupyter Server\nPod (Dev Environment)")
 
-                        # Pool de Nós dedicados com aceleradores físicos
-                        with Cluster("TPU Node Pool"):
-                            tpu_trillium = TPU("Cloud TPU v6e Slice\n(Topology: 2x4/Trillium)")
+                        # Pool de Nós acelerados por hardware
+                        tpu_nodes = TPU("Cloud TPU v5e/v6e\n(Node Pool Acelerado)")
 
-        # --- Fluxo de Conectividade e Acesso ---
-        # Desenvolvedor fecha o túnel seguro na porta 22 mapeando portas locais
-        developer >> Edge(
-            label="Tunnel TCP via IAP\n(Porta 22)", 
-            color="red", 
-            style="dashed"
-        ) >> iap
-        
-        # O IAP redireciona de forma segura ao Control Plane do GKE para port-forwarding
-        iap >> Edge(
-            label="kubectl port-forward\n(localhost:8888 -> 8888)", 
-            color="blue"
-        ) >> gke_control_plane
+            # --- Fluxo de Comunicação e Tráfego ---
+            
+            # 1. Usuário acessa diretamente via navegador de dentro da rede corporativa
+            caixa_users >> Edge(
+                label="Acesso Web Direto\nhttp://10.8.8.8", 
+                color="darkgreen"
+            ) >> internal_lb
+            
+            # 2. O ILB intercepta a requisição e aciona a política do IAP para checar permissão de acesso
+            internal_lb >> Edge(
+                label="Intercepta para\nAutenticacao IAM", 
+                color="red", 
+                style="dashed"
+            ) >> iap_auth
+            
+            # 3. IAP valida a identidade do usuário Caixa (necessita do papel de 'IAP-secured Web App User')
+            iap_auth >> Edge(
+                label="Redireciona Tráfego\nAutorizado (IAP Role Check)", 
+                color="blue"
+            ) >> k8s_service
 
-        # Encaminhamento interno do GKE do Service até o Pod de desenvolvimento
-        gke_control_plane >> k8s_service >> gdev_pod
+            # 4. O Service do Kubernetes direciona o tráfego validado para o Pod do Jupyter
+            k8s_service >> jupyter_app
 
-        # --- Fluxo de Orquestração, Dados e Hardware ---
-        # O nó do GKE baixa a imagem personalizada diretamente do Artifact Registry regional
-        artifact_registry >> Edge(
-            label="K8s Image Pull\n(Always)", 
-            color="darkgreen", 
-            style="dashed"
-        ) >> gdev_pod
+            # --- Dependências de Infraestrutura e Hardware ---
+            
+            # O GKE faz o pull da imagem do contêiner customizado
+            artifact_registry >> Edge(
+                label="K8s Image Pull\n(Always)", 
+                color="darkgreen", 
+                style="dashed"
+            ) >> jupyter_app
 
-        # GCS FUSE CSI Driver realiza a montagem direta de volumes sem intervenção de scripts manuais no host
-        gcs_bucket >> Edge(
-            label="GCS FUSE CSI Driver\ngcsfuse.csi.storage.gke.io", 
-            color="darkorange"
-        ) >> gdev_pod
+            # Montagem do Cloud Storage FUSE direto nos Pods para acesso aos pesos do Gemma e datasets
+            gcs_bucket >> Edge(
+                label="gcsfuse CSI Driver\nMount /data", 
+                color="darkorange"
+            ) >> jupyter_app
 
-        gcs_bucket >> Edge(
-            label="Mount Dataset & Weight\nPath: /data", 
-            color="darkorange"
-        ) >> train_job
-
-        # Os pods interagem de forma nativa e privilegiada com os nós TPU associados
-        gdev_pod >> Edge(
-            label="Privileged Mode\nDevice Allocation", 
-            color="purple"
-        ) >> tpu_trillium
-
-        train_job >> Edge(
-            label="Target Topology\nLimits: google.com/tpu: 4", 
-            color="purple"
-        ) >> tpu_trillium
+            # Alocação física das TPUs no Pod de treinamento/Jupyter em modo privilegiado
+            jupyter_app >> Edge(
+                label="--privileged\nDevice Access", 
+                color="purple"
+            ) >> tpu_nodes
 
 if __name__ == "__main__":
     # Gera o diagrama em ambos os formatos desejados (PNG para visualização rápida e SVG para qualidade infinita)

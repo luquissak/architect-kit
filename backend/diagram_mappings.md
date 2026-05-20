@@ -9,6 +9,7 @@ Este arquivo serve como um guia de "de-para" para resolver erros de importação
 | `from diagrams.onprem.database import SQLServer` | Classe não encontrada ou renomeada | `from diagrams.azure.database import SQLDatabases` |
 | `from diagrams.generic.database import SQL` | Ambiguidade | `from diagrams.onprem.database import MSSQL` (se for SQL Server) |
 | `from diagrams.onprem.network import Router` | Movido | `from diagrams.generic.network import Router` |
+| `from diagrams.gcp.security import Iap, Armor` | Nome e módulo incorretos | `from diagrams.gcp.security import IAP\nfrom diagrams.gcp.network import Armor` |
 
 ## Mapeamento de Provedores
 
@@ -16,6 +17,9 @@ Este arquivo serve como um guia de "de-para" para resolver erros de importação
 | :--- | :--- | :--- |
 | `onprem.database.SQLServer` | `azure.database.SQLDatabases` | Frequentemente usado quando o ícone onprem não é encontrado |
 | `onprem.client.Users` | `onprem.client.User` | Verifique se é singular ou plural conforme a versão |
+| `gcp.security.Iap` | `gcp.security.IAP` | Iap foi renomeado para IAP (tudo maiúsculo) |
+| `gcp.security.Armor` | `gcp.network.Armor` | Armor pertence ao módulo network na GCP |
+
 
 ---
 
